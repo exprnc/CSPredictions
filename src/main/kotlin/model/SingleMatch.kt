@@ -2,6 +2,7 @@ package com.exprnc.cspredictions.model
 
 data class SingleMatch(
     val id: Long? = null,
+    val url: String? = null,
     val map: Map? = null,
     val firstTeam: Team? = null,
     val secondTeam: Team? = null,
@@ -14,6 +15,7 @@ data class SingleMatch(
     val firstTeamStartedForCT: Boolean? = null,
     val firstHalfScore: Score? = null,
     val secondHalfScore: Score? = null,
-    val extraTimeScore: Score? = null,
+    val overtimeScore: Score? = null,
+    val roundsHistory: List<RoundHistory>? = null,
     val isFinished: Boolean? = null,
 )

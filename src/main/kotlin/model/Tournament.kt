@@ -2,6 +2,7 @@ package com.exprnc.cspredictions.model
 
 data class Tournament(
     val id: Long? = null,
+    val url: String? = null,
     val name: String? = null,
     val type: TournamentType? = null,
     val prizePool: String? = null,

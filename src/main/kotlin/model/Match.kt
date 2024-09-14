@@ -2,6 +2,7 @@ package com.exprnc.cspredictions.model
 
 data class Match(
     val id: Long? = null,
+    val url: String? = null,
     val tournament: Tournament? = null,
     val description: String? = null,
     val bestOf: Long? = null,

@@ -15,6 +15,9 @@ dependencies {
     implementation("com.alibaba.fastjson2:fastjson2:2.0.52")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0-RC")
     implementation("org.jsoup:jsoup:1.18.1")
+    implementation("com.google.firebase:firebase-admin:9.3.0")
+    implementation("ch.qos.logback:logback-classic:1.5.7")
+    implementation("com.google.code.gson:gson:2.11.0")
 }
 
 tasks.test {
