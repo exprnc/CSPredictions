@@ -1,8 +1,6 @@
-package com.exprnc.cspredictions.model
+package model
 
 data class Player(
-    val id: Long? = null,
-    val url: String? = null,
-    val name: String? = null,
-    val stats: PlayerStats? = null
+    val id: Long,
+    val name: String
 )

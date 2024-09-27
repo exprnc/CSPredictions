@@ -1,7 +1,6 @@
-package com.exprnc.cspredictions.model
+package model
 
 data class Team(
-    val id: Long? = null,
-    val url: String? = null,
-    val name: String? = null
+    val id: Long,
+    val name: String,
 )
