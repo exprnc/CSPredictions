@@ -10,6 +10,7 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import utils.BASE_HLTV_URL
+import utils.HLTV_USER_AGENT
 import java.io.FileWriter
 import java.time.DayOfWeek
 import java.time.Instant
@@ -21,7 +22,6 @@ import kotlin.random.Random
 
 class GetArchiveMatchesUseCase {
 
-    private val archiveUrl = "/events/archive"
     private val tournamentPages = 25 // 50 tournaments on one page
     private val archiveMatches = mutableListOf<Match>()
     private var headers = mapOf<String, String>()
@@ -50,7 +50,7 @@ class GetArchiveMatchesUseCase {
     }
 
     private suspend fun tournamentsPage(offset: Int) {
-        val tournamentsDoc = getDocument("$BASE_HLTV_URL$archiveUrl?offset=$offset")
+        val tournamentsDoc = getDocument("$BASE_HLTV_URL/events/archive?offset=$offset")
         val tournamentsElements = tournamentsDoc.select("a.a-reset.small-event.standard-box")
         for (tournamentElement in tournamentsElements) {
             val tournamentType = getTournamentType(tournamentElement)
@@ -243,7 +243,7 @@ class GetArchiveMatchesUseCase {
                     Jsoup.connect(url)
                 }
 
-                connection.userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0")
+                connection.userAgent(HLTV_USER_AGENT)
                 connection.headers(headers)
 
                 delay(Random.nextLong(100, 200))
