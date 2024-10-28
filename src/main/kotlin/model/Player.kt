@@ -1,6 +1,6 @@
 package model
 
 data class Player(
-    val id: Long,
+    val playerId: Long,
     val name: String
 )

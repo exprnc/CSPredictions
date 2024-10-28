@@ -1,8 +1,8 @@
 package model
 
 data class LiveMatch(
-    val id: Long,
-    val url: String,
+    val matchId: Long,
+    val matchUrl: String,
     val bestOf: Int,
     val tournament: Tournament,
     val firstTeam: Team,

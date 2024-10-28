@@ -1,9 +1,6 @@
 package model
 
 data class Tournament(
-    val id: Long,
+    val tournamentId: Long,
     val name: String,
-    val type: String,
-    val prizePool: Int,
-    val isFinished: Boolean
 )

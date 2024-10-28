@@ -1,6 +1,6 @@
 package model
 
 data class Team(
-    val id: Long,
+    val teamId: Long,
     val name: String,
 )
