@@ -5,7 +5,6 @@ import com.google.gson.reflect.TypeToken
 import model.Match
 import utils.FileManager
 import model.PlayerStats
-import utils.sort
 
 class BotRepository() {
     private val gson = Gson()
@@ -19,17 +18,17 @@ class BotRepository() {
     fun getAllMatches() {
         val json = FileManager.readFromFile("matches")
         val type = object : TypeToken<List<Match>>() {}.type
-        GlobalVars.matches = gson.fromJson<List<Match>>(json, type).orEmpty().filter { it.getTier() == 1 && it.bestOf != 1 }.toMutableList()
+        GlobalVars.matches = gson.fromJson<List<Match>>(json, type).orEmpty().reversed().toMutableList()
     }
 
-    private fun updatePlayers() {
+    fun updatePlayers() {
         val json = gson.toJson(GlobalVars.players.values.toList())
         FileManager.putToFile("players", json)
     }
 
     fun updateMatches(matches: List<Match>) {
-        GlobalVars.matches.addAll(matches)
-        val json = gson.toJson(GlobalVars.matches.sort())
+        GlobalVars.matches.addAll(0, matches)
+        val json = gson.toJson(GlobalVars.matches)
         FileManager.putToFile("matches", json)
     }
 }

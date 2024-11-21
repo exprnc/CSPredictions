@@ -3,6 +3,7 @@ package bot.calibrator
 import model.Match
 import model.Rating
 import bot.GlobalVars
+import model.Player
 import model.PlayerStats
 import kotlin.math.*
 import kotlin.math.exp
@@ -28,23 +29,24 @@ class CalibratePlayersGlickoUseCase {
             return
         }
         if (firstTeamValue.phi > 3000)
-        changeRating(match.firstTeamPlayers.map { it.playerId }, secondTeamValue, match.hasFirstTeamWon)
-        changeRating(match.secondTeamPlayers.map { it.playerId }, firstTeamValue, !match.hasFirstTeamWon)
+        changeRating(match.firstTeamPlayers, secondTeamValue, match.hasFirstTeamWon)
+        changeRating(match.secondTeamPlayers, firstTeamValue, !match.hasFirstTeamWon)
     }
 
     private fun changeRating(
-        players: List<Long>,
+        players: List<Player>,
         enemyTeamRating: Rating,
         hasTeamWon: Boolean
     ) {
         for (player in players) {
-            val playerItem = (GlobalVars.players[player] ?: PlayerStats(player)).apply {
+            val playerItem = (GlobalVars.players[player.playerId] ?: PlayerStats(playerId = player.playerId)).apply {
                 val winner = if (hasTeamWon) glicko else enemyTeamRating
                 val loser = if (!hasTeamWon) glicko else enemyTeamRating
                 val result = glicko2.rate1vs1(winner, loser)
+                name = player.name
                 glicko = if (winner == glicko) result.first else result.second
             }
-            GlobalVars.players[player] = playerItem
+            GlobalVars.players[player.playerId] = playerItem
         }
     }
 }
@@ -160,12 +162,5 @@ class Glicko2(
             rate(rating1, listOf((if (drawn) Rating.DRAW else Rating.WIN) to rating2)),
             rate(rating2, listOf((if (drawn) Rating.DRAW else Rating.LOSS) to rating1))
         )
-    }
-
-    fun quality1vs1(rating1: Rating, rating2: Rating): Double {
-        val expectedScore1 = expectScore(rating1, rating2, reduceImpact(rating1))
-        val expectedScore2 = expectScore(rating2, rating1, reduceImpact(rating2))
-        val expectedScore = (expectedScore1 + expectedScore2) / 2
-        return 2 * (0.5 - abs(0.5 - expectedScore))
     }
 }

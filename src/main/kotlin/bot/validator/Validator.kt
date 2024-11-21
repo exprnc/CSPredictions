@@ -2,6 +2,7 @@ package bot.validator
 
 import bot.GlobalVars
 import bot.calibrationMatchCount
+import model.Match
 import utils.orDefault
 
 object Validator {
@@ -16,7 +17,13 @@ object Validator {
         }
     }
 
-    private const val MIN_PLAYERS = 1
+    fun isValid(
+        match: Match
+    ) : Boolean {
+        return isValid(match.firstTeamPlayers.map { it.playerId }, match.secondTeamPlayers.map { it.playerId })
+    }
+
+    private const val MIN_PLAYERS = 3
 
     private fun isPlayersCalibrated(firstTeamPlayers: List<Long>, secondTeamPlayers: List<Long>): Boolean {
         return getCalibratedPlayersCount(firstTeamPlayers) >= MIN_PLAYERS  && getCalibratedPlayersCount(secondTeamPlayers) >= MIN_PLAYERS

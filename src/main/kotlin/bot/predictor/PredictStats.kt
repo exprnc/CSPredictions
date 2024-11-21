@@ -14,7 +14,7 @@ class PredictStats(
     val coefs: MutableList<Double> = mutableListOf()
 ) {
     fun getWinRate(): Double {
-        if (wins + fails == 0) return 0.0
+            if (wins + fails == 0) return 0.0
         return (wins * 1.0 / (wins + fails) * 100).round2()
     }
 

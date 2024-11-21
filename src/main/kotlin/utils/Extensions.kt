@@ -16,9 +16,10 @@ fun Double.round2(): Double {
     return formattedDouble.toDouble()
 }
 
-fun List<Match>.sort(): List<Match> {
-//    return this.sortedWith(compareByDescending<Match> { it.matchId }.thenByDescending { it.tournament.tournamentId })
-    return this.sortedBy { it.matchId }
+fun Double.round3(): Double {
+    var formattedDouble = DecimalFormat("#0.000").format(this)
+    formattedDouble = formattedDouble.replace(",", ".")
+    return formattedDouble.toDouble()
 }
 
 fun String.formatForUrl(): String {

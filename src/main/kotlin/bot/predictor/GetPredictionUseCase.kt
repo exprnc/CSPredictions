@@ -2,6 +2,7 @@ package bot.predictor
 
 import model.Match
 import model.PredictionPart
+import utils.FileManager
 import utils.orDefault
 
 interface GetPredictionUseCase {
@@ -40,4 +41,8 @@ interface GetPredictionUseCase {
     }
 
     fun execute(match: Match): PredictionPart
+
+    fun updateFiles() {
+        FileManager.putToFile(fileName, PredictionPart.gson.toJson(predictionStats))
+    }
 }

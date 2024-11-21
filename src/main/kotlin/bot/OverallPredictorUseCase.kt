@@ -4,23 +4,19 @@ import bot.calibrator.Calibrator
 import bot.predictor.GetPredictionPlayersGlickoUseCase
 import bot.predictor.GetPredictionPlayersUseCase
 import kotlinx.coroutines.*
-import model.Match
-import model.PlayerStats
 import bot.predictor.PredictStats
-import model.PredictionPart
-import model.PredictionType
 import bot.predictor.Predictor
+import model.*
 import utils.JsonManager
 import utils.round1
 import utils.round2
-import utils.sort
 
-var eloWinRate = 50
-var glickoWinRate = 50
-var winRateGap = 0
-var eloSmall = 20.0
-var eloBig = 40.0
-var calibrationMatchCount = 0
+var eloWinRate = 60
+var glickoWinRate = 60
+var winRateGap = 3
+var eloSmall = 12.5
+var eloBig = 25.0
+var calibrationMatchCount = 10
 
 //var maxWinRate = 0.0
 //var maxPredicted = 0.0
@@ -82,32 +78,33 @@ var streakStop = 1
 
 fun main() {
     runBlocking {
-//        loadData()
-//        clearData()
-//        println(OverallPredictorUseCase().execute())
+        loadData()
+        clearData()
+        println(OverallPredictorUseCase().execute())
 
-        var i6 = 1
-        while (i6 < 25) {
-            loadData()
-            clearData()
-            streakStop = i6
-            println("streakStop ${streakStop} ${OverallPredictorUseCase().execute()}")
-            i6++
-        }
+//        var i6 = 6
+//        while (i6 < 25) {
+//            loadData()
+//            clearData()
+//            streakStop = i6
+//            println("streakStop ${streakStop} ${OverallPredictorUseCase().execute()}")
+//            i6++
+//        }
     }
 }
 
 private fun clearData() {
-    val set = mutableSetOf<Long>()
+    val players = mutableSetOf<Player>()
     GetPredictionPlayersUseCase.predictionStats.clear()
     GetPredictionPlayersGlickoUseCase.predictionStats.clear()
     for (match in GlobalVars.matches) {
-        set.addAll(match.firstTeamPlayers.map { it.playerId })
-        set.addAll(match.secondTeamPlayers.map { it.playerId })
+        players.addAll(match.firstTeamPlayers)
+        players.addAll(match.secondTeamPlayers)
     }
     GlobalVars.players.clear()
-    for (playerId in set) {
-        GlobalVars.players[playerId] = (GlobalVars.players[playerId] ?: PlayerStats(playerId)).apply {
+    for (player in players) {
+        GlobalVars.players[player.playerId] = (GlobalVars.players[player.playerId] ?: PlayerStats(player.playerId)).apply {
+            name = player.name
             rating = 1400
             matchCount = 0
         }
@@ -131,21 +128,21 @@ class OverallPredictorUseCase {
     private var calibrationPercentage: Int = 0
     val predictionStatsTeams = mutableMapOf<Long, PredictStats>()
     fun execute(
-        _calibrationPercentage: Int = 70,
+        _calibrationPercentage: Int = 0,
     ): String {
-        val tournaments = GlobalVars.matches.groupBy { it.tournament.tournamentId }.keys
+        val matches = GlobalVars.matches
+        val tournaments = matches.groupBy { it.tournament.tournamentId }.keys
         for (tournament in tournaments) {
             predictionStatsTournaments[tournament] = PredictStats()
         }
         val teams = mutableSetOf<Long>()
-        for (match in GlobalVars.matches) {
+        for (match in matches) {
             teams.add(match.firstTeam.teamId)
             teams.add(match.secondTeam.teamId)
         }
         for (team in teams) { //GlobalVars.teams.keys
             predictionStatsTeams[team] = PredictStats()
         }
-        val matches = GlobalVars.matches.sort()
         this.calibrationPercentage = _calibrationPercentage
         val calibrationMatchesCount = matches.size * calibrationPercentage / 100
         val calibrationMatches = matches.take(calibrationMatchesCount)
@@ -182,13 +179,13 @@ class OverallPredictorUseCase {
             )
             val willFirstTeamWin = prediction.willFirstTeamWin
 
-            val matchWithCoef = matchesWithCoefs.find { it.matchId == match.matchId } ?: match
+//            val matchWithCoef = matchesWithCoefs.find { it.matchId == match.matchId } ?: match
 
-            val coef = if(willFirstTeamWin == true) matchWithCoef.firstTeamCoef else if(willFirstTeamWin == false) matchWithCoef.secondTeamCoef else 0.0
+//            val coef = if(willFirstTeamWin == true) matchWithCoef.firstTeamCoef else if(willFirstTeamWin == false) matchWithCoef.secondTeamCoef else 0.0
 
-            if(coef >= 1.0) {
-                size++
-            }
+//            if(coef >= 1.0) {
+//                size++
+//            }
 
             if (prediction.type == PredictionType.INVALID_PLAYERS) {
                 PredictionPart.updateStats(prediction, match, null)
@@ -207,55 +204,64 @@ class OverallPredictorUseCase {
                     predictionStatsTeams[if (!match.hasFirstTeamWon) match.firstTeam.teamId else match.secondTeam.teamId]!!.losePredicted++
                     predictionStatsTeams[match.secondTeam.teamId]!!.wins++
                     predictionStatsTournaments[match.tournament.tournamentId]!!.wins++
-                if(coef >= 1.0) {
-                    PredictionPart.updateStats(prediction, match, coef - 1)
-                    predictionStatsTournaments[match.tournament.tournamentId]!!.income += coef - 1
 
-                    predictionStatsTournaments[match.tournament.tournamentId]!!.coefs += coef
-
-                    count++
-                    income *= coef
-                    if (maxMultiplier < income) {
-                        maxMultiplier = income
-                    }
-                    if (maxCount < count) {
-                        maxCount = count
-                    }
-//                     if (income > streakStop) {
-                    if (count % streakStop == 0) {
-                        avgLoseStreak.add(loseStreak)
-                        avgCount.add(count)
-                        successStreaks++
-                        overallIncome += income - 1
-                        avgIncome.add(income - 1)
-                        count = 0
-                        income = 1.0
-                        loseStreak = 0
-                    }
-                }
+                    PredictionPart.updateStats(prediction, match, null)
+//                if(coef >= 1.0) {
+//                    PredictionPart.updateStats(prediction, match, coef - 1)
+//                    predictionStatsTournaments[match.tournament.tournamentId]!!.income += coef - 1
+//
+//                    predictionStatsTournaments[match.tournament.tournamentId]!!.coefs += coef
+//
+//                    count++
+//                    income *= coef
+//                    if (maxMultiplier < income) {
+//                        maxMultiplier = income
+//                    }
+//                    if (maxCount < count) {
+//                        maxCount = count
+//                    }
+////                     if (income > streakStop) {
+//                    if (income > streakStop && count % streakStop == 0) {
+//                        avgLoseStreak.add(loseStreak)
+//                        avgCount.add(count)
+//                        successStreaks++
+//                        overallIncome += income - 1
+//                        avgIncome.add(income - 1)
+//                        count = 0
+//                        income = 1.0
+//                        loseStreak = 0
+//                    }
+//                }
             } else {
                     predictionStatsTeams[match.firstTeam.teamId]!!.fails++
                     predictionStatsTeams[match.secondTeam.teamId]!!.fails++
                     predictionStatsTeams[if (match.hasFirstTeamWon) match.firstTeam.teamId else match.secondTeam.teamId]!!.winUnpredicted++
                     predictionStatsTeams[if (!match.hasFirstTeamWon) match.firstTeam.teamId else match.secondTeam.teamId]!!.loseUnpredicted++
                     predictionStatsTournaments[match.tournament.tournamentId]!!.fails++
-                if(coef >= 1.0) {
-                    PredictionPart.updateStats(prediction, match, -1.0)
-                    predictionStatsTournaments[match.tournament.tournamentId]!!.income += -1.0
 
-                    count = 0
-                    income = 1.0
-                    overallIncome -= 1
-                    loseStreak++
-                    if (maxLoseStreak < loseStreak) {
-                        maxLoseStreak = loseStreak
-                    }
-                }
+                    PredictionPart.updateStats(prediction, match, null)
+//                if(coef >= 1.0) {
+//                    PredictionPart.updateStats(prediction, match, -1.0)
+//                    predictionStatsTournaments[match.tournament.tournamentId]!!.income += -1.0
+//
+//                    count = 0
+//                    income = 1.0
+//                    overallIncome -= 1
+//                    loseStreak++
+//                    if (maxLoseStreak < loseStreak) {
+//                        maxLoseStreak = loseStreak
+//                    }
+//                }
             }
             calibrationPattern.execute(match)
             previousMatches.add(match)
         }
         println(size)
+
+        BotRepository().updatePlayers()
+        GetPredictionPlayersGlickoUseCase.updateFiles()
+        GetPredictionPlayersUseCase.updateFiles()
+
         return analyzeData(predictionMatches, predictionStatsTournaments, predictionStatsTeams)
 //        return "income " + overallIncome.round2().toString() + " streaks $successStreaks maxMultiplier ${maxMultiplier.round2()} avgLoseStreak ${avgLoseStreak.average().round2()} maxLoseStreak $maxLoseStreak avgIncome ${avgIncome.average().round2()} avgCount ${avgCount.average().round2()} maxCount $maxCount"
     }

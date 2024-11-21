@@ -8,8 +8,6 @@ data class Match(
     val secondTeam: Team,
     val firstTeamRanking: Int,
     val secondTeamRanking: Int,
-    val firstTeamCoef: Double = 0.0,
-    val secondTeamCoef: Double = 0.0,
     val firstTeamScore: Int,
     val secondTeamScore: Int,
     val hasFirstTeamWon: Boolean,
