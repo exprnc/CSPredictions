@@ -36,7 +36,6 @@ class StartPredictMatchesUseCase {
     private val predictor = Predictor()
     private val calibrator = Calibrator()
 
-    private val predictedMatches by lazy { fetchPredictedMatches() }
     private val finishedMatches = mutableListOf<Match>()
     private val missedMatches = mutableListOf<Match>()
     private val liveMatches = Pair(mutableSetOf<LiveMatch>(), mutableSetOf<LiveMatch>()) // first value is currentLiveMatches, second value is pastLiveMatches
@@ -71,6 +70,8 @@ class StartPredictMatchesUseCase {
     }
 
     private fun loadData() {
+        println("Loading data...")
+        GlobalVars.predictedMatches = JsonManager.getPredictedMatches()
         botRepository.getAllPlayers()
         val matches = JsonManager.getAllMatches().toSet().toList()
         GlobalVars.matches = matches.toMutableList()
@@ -93,12 +94,6 @@ class StartPredictMatchesUseCase {
         )
     }
 
-    private fun fetchPredictedMatches() : MutableMap<Long, PredictionInfo> {
-        val json = File("predictedMatches.json").readText()
-        val type = object : TypeToken<MutableMap<Long, PredictionInfo>>() {}.type
-        return gson.fromJson(json, type)
-    }
-
     private fun getPredict(bot: Bot) {
         val matchesForPredict = upcomingMatches.first.filterNot { upcomingMatches.second.contains(it) }.toMutableSet()
 
@@ -107,35 +102,32 @@ class StartPredictMatchesUseCase {
                 matchesForPredict.add(it)
             }
             isFirstLaunch = false
-
         }
         println("MATCHES FOR PREDICT:")
         matchesForPredict.forEach {
-            println(it)
+            println("${it.matchId}: ${it.firstTeam.name} VS ${it.secondTeam.name} ${it.tournament.name}: $it")
         }
 
         for(liveMatch in matchesForPredict) {
-            if(predictedMatches.containsKey(liveMatch.matchId)) continue
+            if(GlobalVars.predictedMatches.containsKey(liveMatch.matchId)) {
+                println("predictedMatches.containsKey(liveMatch.matchId)")
+                continue
+            }
             val prediction = predictor.getPredictionByMatch(liveMatch.toMatch())
 //            val bet = IncomeHandlerV2.IncomeMatch.createFromOdds(liveMatch.toMatch(), prediction)
             bot.sendMessage(
                 chatId = ChatId.fromId(TEST_CHANNEL_ID),
                 text = predictMessageForm(liveMatch, prediction)
             ).onSuccess {
-                predictedMatches[liveMatch.matchId] = PredictionInfo(messageId = it.messageId, liveMatch.toMatch(), prediction)
+                GlobalVars.predictedMatches[liveMatch.matchId] = PredictionInfo(messageId = it.messageId, liveMatch.toMatch(), prediction)
+                println("PREDICT SEND MESSAGE SUCCESS")
             }.onError {
-                predictedMatches[liveMatch.matchId] = PredictionInfo(messageId = null, liveMatch.toMatch(), prediction)
+                GlobalVars.predictedMatches[liveMatch.matchId] = PredictionInfo(messageId = null, liveMatch.toMatch(), prediction)
+                println("PREDICT SEND MESSAGE ERROR")
             }
         }
-        File("predictedMatches.json").writeText(gson.toJson(predictedMatches))
+        File("predictedMatches.json").writeText(gson.toJson(GlobalVars.predictedMatches))
     }
-
-    data class PredictionInfo(
-        val messageId: Long?,
-        val match: Match,
-        val prediction: Prediction?,
-//        var bet: IncomeHandlerV2.IncomeMatch,
-    )
 
     private fun updateBotStats(bot: Bot, match: Match, prediction: Prediction) {
         val oldBotStats = getBotStats()
@@ -217,11 +209,32 @@ class StartPredictMatchesUseCase {
             )
         }
 
-        bot.editMessageText(
+        println("NEW BOT STATS: $newBotStats")
+
+        val editBotStatsPair = bot.editMessageText(
             chatId = ChatId.fromId(TEST_CHANNEL_ID),
             messageId = BOT_STATS_MESSAGE_ID,
             text = botStatsMessageForm(botStats = newBotStats)
         )
+
+        when (editBotStatsPair.first?.isSuccessful) {
+            true -> {
+                println("editBotStatsPair.first?.isSuccessful == true")
+            }
+            false -> {
+                println("editBotStatsPair.first?.isSuccessful == false")
+            }
+            else -> {
+                println("editBotStatsPair.first?.isSuccessful == null")
+            }
+        }
+
+        if(editBotStatsPair.second == null) {
+            println("editBotStatsPair.second == null")
+        } else {
+            println("editBotStatsPair Exception")
+            editBotStatsPair.second!!.printStackTrace()
+        }
 
         File("botStats.json").writeText(gson.toJson(newBotStats))
     }
@@ -240,23 +253,57 @@ class StartPredictMatchesUseCase {
         val matchesForSave = liveMatches.second.filterNot { liveMatches.first.contains(it) }
         println("MATCHES FOR SAVE:")
         matchesForSave.forEach {
-            println(it)
+            println("${it.matchId}: ${it.firstTeam.name} VS ${it.secondTeam.name} ${it.tournament.name}: $it")
         }
         matchesForSave.forEach { match ->
             getMatchForSave(match)
         }
+
+        println("FINISHED MATCHES:")
+        finishedMatches.forEach {
+            println("${it.matchId}: ${it.firstTeam.name} VS ${it.secondTeam.name} ${it.tournament.name}: $it")
+        }
+
         for (finishedMatch in finishedMatches) {
-            val messageId = predictedMatches[finishedMatch.matchId]?.messageId
-            val prediction = predictedMatches[finishedMatch.matchId]?.prediction ?: continue
+            val messageId = GlobalVars.predictedMatches[finishedMatch.matchId]?.messageId
+            val prediction = GlobalVars.predictedMatches[finishedMatch.matchId]?.prediction
+
+            if(messageId == null) {
+                println("messageId IS NULL: $finishedMatch")
+            }
+
+            if(prediction == null) {
+                println("PREDICTION IS NULL: $finishedMatch")
+                continue
+            }
 
             updateBotStats(bot, finishedMatch, prediction)
 
             if(messageId != null) {
-                bot.editMessageText(
+                val editPredictPair = bot.editMessageText(
                     chatId = ChatId.fromId(TEST_CHANNEL_ID),
                     messageId = messageId,
                     text = editMessageForm(finishedMatch, prediction)
                 )
+
+                when (editPredictPair.first?.isSuccessful) {
+                    true -> {
+                        println("editPredictPair.first?.isSuccessful == true")
+                    }
+                    false -> {
+                        println("editPredictPair.first?.isSuccessful == false")
+                    }
+                    else -> {
+                        println("editPredictPair.first?.isSuccessful == null")
+                    }
+                }
+
+                if(editPredictPair.second == null) {
+                    println("editPredictPair.second == null")
+                } else {
+                    println("editPredictPair Exception")
+                    editPredictPair.second!!.printStackTrace()
+                }
             }
 
             calibrator.execute(finishedMatch)
@@ -284,13 +331,20 @@ class StartPredictMatchesUseCase {
 
     private suspend fun getMatchForSave(liveMatch: LiveMatch) {
         val matchDoc = getDocument(liveMatch.matchUrl)
-        if(matchWasCancelled(matchDoc)) return
+
+        if(matchWasCancelled(matchDoc)) {
+            println("getMatchForSave return: matchWasCancelled")
+            return
+        }
         val teamsBoxElement = matchDoc.select("div.standard-box.teamsBox")
         val firstTeamBoxElement = teamsBoxElement.select("div.team")[0]
         val secondTeamBoxElement = teamsBoxElement.select("div.team")[1]
         val firstTeamScore = firstTeamBoxElement.select("div.team1-gradient").select("div.lost, div.won, div.tie").text().toInt()
         val secondTeamScore = secondTeamBoxElement.select("div.team2-gradient").select("div.lost, div.won, div.tie").text().toInt()
-        if(firstTeamScore == secondTeamScore) return
+        if(firstTeamScore == secondTeamScore) {
+            println("getMatchForSave return: firstTeamScore == secondTeamScore")
+            return
+        }
 
         val finishedMatch = Match(
             matchId = liveMatch.matchId,
@@ -311,6 +365,7 @@ class StartPredictMatchesUseCase {
     }
 
     private fun reconfigureMatchSets() {
+        println("Reconfiguring match sets...")
         liveMatches.second.clear()
         liveMatches.second.addAll(liveMatches.first)
         liveMatches.first.clear()
@@ -328,6 +383,8 @@ class StartPredictMatchesUseCase {
             try {
                 println("Setting up headers...")
 
+                println(BASE_HLTV_URL)
+
                 val connection = Jsoup.connect(BASE_HLTV_URL)
                 connection.userAgent(HLTV_USER_AGENT)
 
@@ -338,6 +395,7 @@ class StartPredictMatchesUseCase {
 
                 return
             } catch (e: Exception) {
+                println("headersSetup Exception")
                 e.printStackTrace()
                 println("Delaying...")
                 delay(Random.nextLong(10000, 15000))
@@ -356,6 +414,7 @@ class StartPredictMatchesUseCase {
                 for (matchElement in matchesElements) {
                     val matchId = extractSthFromUrl(matchElement.attr("href"), "matches/").toLong()
                     if(matchId == lastMatch.matchId) {
+                        println("$matchId & ${lastMatch.matchId} equals")
                         saveMissedMatches()
                         return
                     }
@@ -364,12 +423,14 @@ class StartPredictMatchesUseCase {
                 offset += 100
             }
         } catch (e: Exception) {
+            println("getMissedMatches Exception")
             e.printStackTrace()
             return
         }
     }
 
     private fun saveMissedMatches() {
+        println("Saving missed matches...")
         missedMatches.forEach { missedMatch ->
             val prediction = predictor.getPredictionByMatch(missedMatch)
             calibrator.execute(missedMatch)
@@ -386,7 +447,10 @@ class StartPredictMatchesUseCase {
     private suspend fun missedMatchPage(matchElement: Element) {
         val matchUrl = BASE_HLTV_URL + matchElement.attr("href")
         val matchDoc = getDocument(matchUrl, from = 200, until = 400)
-        if(matchWasCancelled(matchDoc)) return
+        if(matchWasCancelled(matchDoc)) {
+            println("matchWasCancelled return: $matchUrl")
+            return
+        }
         val tournamentInfoElement = matchDoc.select("div.event.text-ellipsis").select("a")
         val description = matchDoc.select("div.padding.preformatted-text").text()
         val teamsBoxElement = matchDoc.select("div.standard-box.teamsBox")
@@ -400,7 +464,10 @@ class StartPredictMatchesUseCase {
         val secondTeamName = secondTeamBoxElement.select("div.teamName").text()
         val firstTeamScore = firstTeamBoxElement.select("div.team1-gradient").select("div.lost, div.won, div.tie").text().toInt()
         val secondTeamScore = secondTeamBoxElement.select("div.team2-gradient").select("div.lost, div.won, div.tie").text().toInt()
-        if(firstTeamScore == secondTeamScore) return
+        if(firstTeamScore == secondTeamScore) {
+            println("firstTeamScore == secondTeamScore return: $matchUrl")
+            return
+        }
 
         var firstTeamRanking: Int
         var secondTeamRanking: Int
@@ -408,14 +475,19 @@ class StartPredictMatchesUseCase {
         var secondTeamPlayers: List<Player>
 
         try {
+            println("missedMatchPage TRY GET PLAYERS WITH LINEUP ELEMENT: $matchUrl")
             val firstTeamLineupElement = matchDoc.select("div#lineups.lineups").select("div.lineup.standard-box")[0]
             val secondTeamLineupElement = matchDoc.select("div#lineups.lineups").select("div.lineup.standard-box")[1]
             firstTeamRanking = getTeamRanking(firstTeamLineupElement)
             secondTeamRanking = getTeamRanking(secondTeamLineupElement)
             firstTeamPlayers = getTeamPlayersWithLineupElement(firstTeamLineupElement)
             secondTeamPlayers = getTeamPlayersWithLineupElement(secondTeamLineupElement)
-            if(firstTeamPlayers.isEmpty() || secondTeamPlayers.isEmpty()) return
+            if(firstTeamPlayers.isEmpty() || secondTeamPlayers.isEmpty()) {
+                println("missedMatchPage return: teamPlayer is empty: $matchUrl")
+                return
+            }
         } catch (e: IndexOutOfBoundsException) {
+            println("missedMatchPage TRY GET PLAYERS WITH STATS ELEMENT: $matchUrl")
             e.printStackTrace()
             val startDateUnix = teamsBoxElement.select("div.time").attr("data-unix").toLong()
             val matchStartDate = convertUnixToString(startDateUnix)
@@ -454,8 +526,9 @@ class StartPredictMatchesUseCase {
         singleMatchesStatsElements.forEach { singleMatchStatsElement ->
             val parentStatsElement = singleMatchStatsElement.parent()
             val mapName = parentStatsElement!!.select("div.mapname").text()
-            val resultsStats = singleMatchStatsElement.selectFirst("a.results-stats")
-            if(mapName.contains("Default") || resultsStats == null) return true
+//            val resultsStats = singleMatchStatsElement.selectFirst("a.results-stats")
+//            if(mapName.contains("Default") || resultsStats == null) return true
+            if(mapName.contains("Default")) return true
         }
         return false
     }
@@ -524,14 +597,19 @@ class StartPredictMatchesUseCase {
         val matchesDoc = getDocument("$BASE_HLTV_URL/matches")
         val upcomingMatchesContainers = matchesDoc.select("div.upcomingMatch")
         val liveMatchesContainers = matchesDoc.select("div.liveMatch-container")
+        println("Fetching upcomingMatches...")
         for(container in upcomingMatchesContainers) {
             if(!isValidForPredict(container)) continue
             val upcomingMatchUrl = BASE_HLTV_URL + container.select("a.match.a-reset").attr("href")
             val upcomingMatchDoc = getDocument(upcomingMatchUrl)
             val tournament = getTournament(upcomingMatchDoc)
-            if(tournament.tournamentId == 0L) continue
+            if(tournament.tournamentId == 0L) {
+                println("tournament.tournamentId == 0L: $upcomingMatchUrl")
+                continue
+            }
             matchPage(upcomingMatchDoc, upcomingMatchUrl, tournament, false)
         }
+        println("Fetching liveMatches...")
         for(container in liveMatchesContainers) {
             if(container.attr("team1").isEmpty() || container.attr("team2").isEmpty()) continue
             val liveMatchUrl = BASE_HLTV_URL + container.select("a.match.a-reset").attr("href")
@@ -581,9 +659,13 @@ class StartPredictMatchesUseCase {
         val secondTeamRanking = getTeamRanking(secondTeamLineupElement)
         val firstTeamPlayers = getTeamPlayers(firstTeamLineupElement)
         val secondTeamPlayers = getTeamPlayers(secondTeamLineupElement)
-        if(firstTeamPlayers.isEmpty() || secondTeamPlayers.isEmpty()) return
+        if(firstTeamPlayers.isEmpty() || secondTeamPlayers.isEmpty()) {
+            println("matchPage TeamPlayers is EMPTY: $liveMatchUrl")
+            return
+        }
 
         if(isLiveMatch) {
+            println("liveMatches.first.add: $liveMatchUrl")
             liveMatches.first.add(
                 LiveMatch(
                     matchId = matchId,
@@ -599,6 +681,7 @@ class StartPredictMatchesUseCase {
                 )
             )
         } else {
+            println("upcomingMatches.first.add: $liveMatchUrl")
             upcomingMatches.first.add(
                 LiveMatch(
                     matchId = matchId,
@@ -671,6 +754,7 @@ class StartPredictMatchesUseCase {
 
                 return document
             } catch (e: Exception) {
+                println("getDocument Exception")
                 e.printStackTrace()
                 println("Delaying...")
                 delay(Random.nextLong(5000, 10000))
