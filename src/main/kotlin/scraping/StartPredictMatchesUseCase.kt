@@ -2,7 +2,6 @@ package scraping
 
 import bot.BotRepository
 import bot.GlobalVars
-import bot.IncomeHandlerV2
 import bot.calibrator.Calibrator
 import bot.predictor.GetPredictionPlayersGlickoUseCase
 import bot.predictor.GetPredictionPlayersUseCase
@@ -29,13 +28,15 @@ import kotlin.random.Random
 
 class StartPredictMatchesUseCase {
 
+    private var isFirstLaunch = true
+
     private val gson = Gson()
 
     private val botRepository = BotRepository()
     private val predictor = Predictor()
     private val calibrator = Calibrator()
 
-    private val predictedMatchesIds = mutableMapOf<Long, PredictionInfo>()
+    private val predictedMatches by lazy { fetchPredictedMatches() }
     private val finishedMatches = mutableListOf<Match>()
     private val missedMatches = mutableListOf<Match>()
     private val liveMatches = Pair(mutableSetOf<LiveMatch>(), mutableSetOf<LiveMatch>()) // first value is currentLiveMatches, second value is pastLiveMatches
@@ -92,24 +93,41 @@ class StartPredictMatchesUseCase {
         )
     }
 
+    private fun fetchPredictedMatches() : MutableMap<Long, PredictionInfo> {
+        val json = File("predictedMatches.json").readText()
+        val type = object : TypeToken<MutableMap<Long, PredictionInfo>>() {}.type
+        return gson.fromJson(json, type)
+    }
+
     private fun getPredict(bot: Bot) {
-        val matchesForPredict = upcomingMatches.first.filterNot { upcomingMatches.second.contains(it) }
+        val matchesForPredict = upcomingMatches.first.filterNot { upcomingMatches.second.contains(it) }.toMutableSet()
+
+        if(isFirstLaunch) {
+            liveMatches.first.forEach {
+                matchesForPredict.add(it)
+            }
+            isFirstLaunch = false
+
+        }
         println("MATCHES FOR PREDICT:")
         matchesForPredict.forEach {
             println(it)
         }
-        matchesForPredict.forEach { liveMatch ->
+
+        for(liveMatch in matchesForPredict) {
+            if(predictedMatches.containsKey(liveMatch.matchId)) continue
             val prediction = predictor.getPredictionByMatch(liveMatch.toMatch())
 //            val bet = IncomeHandlerV2.IncomeMatch.createFromOdds(liveMatch.toMatch(), prediction)
             bot.sendMessage(
                 chatId = ChatId.fromId(TEST_CHANNEL_ID),
                 text = predictMessageForm(liveMatch, prediction)
             ).onSuccess {
-                predictedMatchesIds[liveMatch.matchId] = PredictionInfo(messageId = it.messageId, liveMatch.toMatch(), prediction)
+                predictedMatches[liveMatch.matchId] = PredictionInfo(messageId = it.messageId, liveMatch.toMatch(), prediction)
             }.onError {
-                predictedMatchesIds[liveMatch.matchId] = PredictionInfo(messageId = null, liveMatch.toMatch(), prediction)
+                predictedMatches[liveMatch.matchId] = PredictionInfo(messageId = null, liveMatch.toMatch(), prediction)
             }
         }
+        File("predictedMatches.json").writeText(gson.toJson(predictedMatches))
     }
 
     data class PredictionInfo(
@@ -228,8 +246,8 @@ class StartPredictMatchesUseCase {
             getMatchForSave(match)
         }
         for (finishedMatch in finishedMatches) {
-            val messageId = predictedMatchesIds[finishedMatch.matchId]?.messageId
-            val prediction = predictedMatchesIds[finishedMatch.matchId]?.prediction ?: continue
+            val messageId = predictedMatches[finishedMatch.matchId]?.messageId
+            val prediction = predictedMatches[finishedMatch.matchId]?.prediction ?: continue
 
             updateBotStats(bot, finishedMatch, prediction)
 
@@ -243,7 +261,6 @@ class StartPredictMatchesUseCase {
 
             calibrator.execute(finishedMatch)
             PredictionPart.updateStats(prediction, finishedMatch, null)
-            predictedMatchesIds.remove(finishedMatch.matchId)
         }
 
         GetPredictionPlayersGlickoUseCase.updateFiles()
@@ -254,15 +271,15 @@ class StartPredictMatchesUseCase {
     }
 
     private fun predictMessageForm(liveMatch: LiveMatch, prediction: Prediction): String {
-        val predictText = if(prediction.willFirstTeamWin == true) "${liveMatch.firstTeam.name} Victory" else if(prediction.willFirstTeamWin == false) "${liveMatch.secondTeam.name} Victory" else "Unpredictable"
-        val predictEmoji = if(predictText.contains("Unpredictable")) "◻\uFE0F◻\uFE0F◻\uFE0F◻\uFE0F◻\uFE0F◻\uFE0F" else "\uD83D\uDD51\uD83D\uDD51\uD83D\uDD51\uD83D\uDD51\uD83D\uDD51\uD83D\uDD51"
-        return "${liveMatch.tournament.name}\n\n${liveMatch.firstTeam.name} VS ${liveMatch.secondTeam.name}\n\n$predictText\n$predictEmoji"
+        val predictText = if(prediction.willFirstTeamWin == true) "${liveMatch.firstTeam.name} VICTORY" else if(prediction.willFirstTeamWin == false) "${liveMatch.secondTeam.name} VICTORY" else "UNPREDICTABLE"
+        val predictEmoji = if(predictText.contains("UNPREDICTABLE")) "◻\uFE0F◻\uFE0F◻\uFE0F◻\uFE0F◻\uFE0F◻\uFE0F" else "\uD83D\uDD51\uD83D\uDD51\uD83D\uDD51\uD83D\uDD51\uD83D\uDD51\uD83D\uDD51"
+        return "${liveMatch.tournament.name}\n\n${liveMatch.firstTeam.name} VS ${liveMatch.secondTeam.name}\n\nPREDICT: $predictText\n\nBEST OF: ${liveMatch.bestOf}\n$predictEmoji"
     }
 
     private fun editMessageForm(match: Match, prediction: Prediction): String {
-        val predictText = if(prediction.willFirstTeamWin == true) "${match.firstTeam.name} Victory" else if(prediction.willFirstTeamWin == false) "${match.secondTeam.name} Victory" else "Unpredictable"
-        val predictEmoji = if(predictText.contains("Unpredictable")) "◻\uFE0F◻\uFE0F◻\uFE0F◻\uFE0F◻\uFE0F◻\uFE0F" else if(match.hasFirstTeamWon == prediction.willFirstTeamWin) "✅✅✅✅✅✅" else "\uD83D\uDEAB\uD83D\uDEAB\uD83D\uDEAB\uD83D\uDEAB\uD83D\uDEAB\uD83D\uDEAB"
-        return "${match.tournament.name}\n\n${match.firstTeam.name} VS ${match.secondTeam.name} [${match.firstTeamScore} : ${match.secondTeamScore}]\n\n$predictText\n$predictEmoji"
+        val predictText = if(prediction.willFirstTeamWin == true) "${match.firstTeam.name} VICTORY" else if(prediction.willFirstTeamWin == false) "${match.secondTeam.name} VICTORY" else "UNPREDICTABLE"
+        val predictEmoji = if(predictText.contains("UNPREDICTABLE")) "◻\uFE0F◻\uFE0F◻\uFE0F◻\uFE0F◻\uFE0F◻\uFE0F" else if(match.hasFirstTeamWon == prediction.willFirstTeamWin) "✅✅✅✅✅✅" else "\uD83D\uDEAB\uD83D\uDEAB\uD83D\uDEAB\uD83D\uDEAB\uD83D\uDEAB\uD83D\uDEAB"
+        return "${match.tournament.name}\n\n${match.firstTeam.name} VS ${match.secondTeam.name} [${match.firstTeamScore} : ${match.secondTeamScore}]\n\nPREDICT: $predictText\n\nBEST OF: ${match.bestOf}\n$predictEmoji"
     }
 
     private suspend fun getMatchForSave(liveMatch: LiveMatch) {
@@ -294,10 +311,15 @@ class StartPredictMatchesUseCase {
     }
 
     private fun reconfigureMatchSets() {
+        liveMatches.second.clear()
         liveMatches.second.addAll(liveMatches.first)
         liveMatches.first.clear()
+
+        upcomingMatches.second.clear()
         upcomingMatches.second.addAll(upcomingMatches.first)
         upcomingMatches.first.clear()
+
+
         finishedMatches.clear()
     }
 
@@ -501,7 +523,7 @@ class StartPredictMatchesUseCase {
     private suspend fun matchesPage() {
         val matchesDoc = getDocument("$BASE_HLTV_URL/matches")
         val upcomingMatchesContainers = matchesDoc.select("div.upcomingMatch")
-        val liveMatchesContainers = matchesDoc.select("div.liveMatch")
+        val liveMatchesContainers = matchesDoc.select("div.liveMatch-container")
         for(container in upcomingMatchesContainers) {
             if(!isValidForPredict(container)) continue
             val upcomingMatchUrl = BASE_HLTV_URL + container.select("a.match.a-reset").attr("href")
@@ -511,6 +533,7 @@ class StartPredictMatchesUseCase {
             matchPage(upcomingMatchDoc, upcomingMatchUrl, tournament, false)
         }
         for(container in liveMatchesContainers) {
+            if(container.attr("team1").isEmpty() || container.attr("team2").isEmpty()) continue
             val liveMatchUrl = BASE_HLTV_URL + container.select("a.match.a-reset").attr("href")
             val liveMatchDoc = getDocument(liveMatchUrl)
             val tournament = getTournament(liveMatchDoc)
@@ -523,7 +546,7 @@ class StartPredictMatchesUseCase {
         if(matchContainer.attr("team1").isEmpty() || matchContainer.attr("team2").isEmpty()) return false
         val matchTimeUnix = matchContainer.select("div.matchTime").attr("data-unix").toLong()
         val currentTimeUnix = System.currentTimeMillis()
-        val validMillisForPredict: Long = 30 * 60000 // The first number indicates how many minutes should remain before the start of the match for the prediction
+        val validMillisForPredict: Long = 15 * 60000 // The first number indicates how many minutes should remain before the start of the match for the prediction
         return (matchTimeUnix - currentTimeUnix) < validMillisForPredict
     }
 
