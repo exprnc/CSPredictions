@@ -11,7 +11,6 @@ import com.github.kotlintelegrambot.bot
 import com.github.kotlintelegrambot.dispatch
 import com.github.kotlintelegrambot.dispatcher.command
 import com.github.kotlintelegrambot.entities.ChatId
-<<<<<<< HEAD
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
@@ -22,25 +21,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-=======
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
->>>>>>> 30d2eaf6c61ab7dacfcc971e274163dbb516343c
 import model.*
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-<<<<<<< HEAD
 import scraping.SeleniumScraping.driver
 import utils.*
 import java.io.File
 import java.io.FileInputStream
-=======
-import utils.*
-import java.io.File
->>>>>>> 30d2eaf6c61ab7dacfcc971e274163dbb516343c
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
@@ -62,7 +50,6 @@ class StartPredictMatchesUseCase {
     private val upcomingMatches = Pair(mutableSetOf<LiveMatch>(), mutableSetOf<LiveMatch>()) // first value is currentUpcomingMatches, second value is pastUpcomingMatches
     private var headers = mapOf<String, String>()
 
-<<<<<<< HEAD
 //    private val firestore by lazy { FirestoreClient.getFirestore() }
     private var cookies = mutableMapOf<String, String>()
 
@@ -95,8 +82,6 @@ class StartPredictMatchesUseCase {
 //        }
 //    }
 
-=======
->>>>>>> 30d2eaf6c61ab7dacfcc971e274163dbb516343c
     fun execute() {
         runBlocking {
             try {
@@ -104,13 +89,9 @@ class StartPredictMatchesUseCase {
                     token = TELEGRAM_BOT_TOKEN
                     dispatch {
                         command("start") {
-<<<<<<< HEAD
 //                            headersSetup()
 //                            getFirestoreCookies()
                             getCookie()
-=======
-                            headersSetup()
->>>>>>> 30d2eaf6c61ab7dacfcc971e274163dbb516343c
                             loadData()
                             getMissedMatches()
                             println("Predicting matches has begun")
@@ -130,7 +111,6 @@ class StartPredictMatchesUseCase {
         }
     }
 
-<<<<<<< HEAD
     private fun showCurrentTime() {
         val currentTime = LocalDateTime.now()
         val formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
@@ -138,8 +118,6 @@ class StartPredictMatchesUseCase {
         println("Current time: $formattedTime")
     }
 
-=======
->>>>>>> 30d2eaf6c61ab7dacfcc971e274163dbb516343c
     private fun loadData() {
         println("Loading data...")
         GlobalVars.predictedMatches = JsonManager.getPredictedMatches()
@@ -449,7 +427,6 @@ class StartPredictMatchesUseCase {
         finishedMatches.clear()
     }
 
-<<<<<<< HEAD
 //    private suspend fun headersSetup() {
 //        while (true) {
 //            try {
@@ -474,32 +451,6 @@ class StartPredictMatchesUseCase {
 //            }
 //        }
 //    }
-=======
-    private suspend fun headersSetup() {
-        while (true) {
-            try {
-                println("Setting up headers...")
-
-                println(BASE_HLTV_URL)
-
-                val connection = Jsoup.connect(BASE_HLTV_URL)
-                connection.userAgent(HLTV_USER_AGENT)
-
-                delay(Random.nextLong(3500, 5000))
-                connection.get()
-
-                headers = connection.response().headers()
-
-                return
-            } catch (e: Exception) {
-                println("headersSetup Exception")
-                e.printStackTrace()
-                println("Delaying...")
-                delay(Random.nextLong(10000, 15000))
-            }
-        }
-    }
->>>>>>> 30d2eaf6c61ab7dacfcc971e274163dbb516343c
 
     private suspend fun getMissedMatches() {
         try {
@@ -836,7 +787,6 @@ class StartPredictMatchesUseCase {
         }
     }
 
-<<<<<<< HEAD
     private fun getCookie() {
         driver.get(BASE_HLTV_URL)
         for (cookie in driver.manage().cookies) {
@@ -855,26 +805,16 @@ class StartPredictMatchesUseCase {
                     getCookie()
                 }
                 showCurrentTime()
-=======
-    private suspend fun getDocument(url: String, from: Long = 1500, until: Long = 3000): Document {
-        while (true) {
-            try {
->>>>>>> 30d2eaf6c61ab7dacfcc971e274163dbb516343c
                 println(url)
                 val connection = Jsoup.connect(url)
 
                 connection.userAgent(HLTV_USER_AGENT)
-<<<<<<< HEAD
                 connection.cookies(cookies)
 //                connection.headers(headers)
-=======
-                connection.headers(headers)
->>>>>>> 30d2eaf6c61ab7dacfcc971e274163dbb516343c
 
                 delay(Random.nextLong(from, until))
                 val document = connection.get()
 
-<<<<<<< HEAD
 //                headers = connection.response().headers()
 
                 needCookieCounter = 0
@@ -885,16 +825,6 @@ class StartPredictMatchesUseCase {
                 e.printStackTrace()
                 println("Delaying...")
                 delay(Random.nextLong(15000, 25000))
-=======
-                headers = connection.response().headers()
-
-                return document
-            } catch (e: Exception) {
-                println("getDocument Exception")
-                e.printStackTrace()
-                println("Delaying...")
-                delay(Random.nextLong(5000, 10000))
->>>>>>> 30d2eaf6c61ab7dacfcc971e274163dbb516343c
             }
         }
     }
